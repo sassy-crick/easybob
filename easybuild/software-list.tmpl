@@ -1,0 +1,15 @@
+# We check if we are running on a GPU node or not. If so, we set --cuda-compute-capabilities as defined in site-config
+if [ -z "${CUDA_COMPUTE_CAPABILITIES}" ]; then
+alias eb="${EB}"
+else
+alias eb="${EB} --cuda-compute-capabilities=${CUDA_COMPUTE_CAPABILITIES}"
+echo "The CUDA compute capabilties is set to"  ${CUDA_COMPUTE_CAPABILITIES} 
+echo "We got access to " $CUDA_VISIBLE_DEVICES "GPUs"
+fi
+
+alias | grep eb
+
+# building stuff
+eb --fetch ${SW_LIST} 
+eb ${SW_LIST} 
+

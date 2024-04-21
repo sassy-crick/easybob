@@ -1,0 +1,93 @@
+# This file contains all the site specific configurations,
+# like for example the various paths, which partition to be used,
+# the amount of requestable resources like cores, memory and time.
+# Others may be added there as well.
+# The idea is to use that file so all the configurations are the same,
+# regardless whether they are in the Singularity Definition file or in
+# the installation script. 
+# This example script is for a single architecture cluster, where we only
+# use a production (prod) and development (dev) software stack
+
+# Variables PBSpro concerning
+# The 'PLATFORM' is the various platforms which are being build
+# with the functions below the definition of them
+# PLATFORMS="prod dev"
+PLATFORMS="prod"
+# PLATFORMS="dev"
+
+# We need to specify the queue for the cluster:
+QUEUE="hx"
+
+# We currently have only one CPU arch, so we don't really need this right now.
+# However, we leave that for references:
+# function haswell {
+# PARTITION="haswell"
+# CORES="12"
+# ARCH="haswell"
+#}
+
+function prod {
+PARTITION=""
+CORES="24"
+ARCH="prod"
+}
+
+function dev {
+PARTITION=""
+CORES="24"
+ARCH="dev"
+}
+
+#### GPU SECTION ###
+# We need to set the version of the nVidia GPUs we are using
+# For the RTX6000 that is 7.5
+# For the A100 that is 8.0
+# See here for more details:
+# https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/
+
+function hx1-gpu {
+PARTITION=":ngpus=4:gpu_type=A100"
+CORES="12"
+ARCH="prod"
+CUDA_COMPUTE_CAPABILITIES="8.0"
+}
+
+####
+
+# What is it we want to use to install? Only EasyBuild or EESSI or both?
+# Possible choices are EB, EESSI and BOTH 
+INSTALLING="EB"
+
+# These bits are needed for the software installation using EasyBuild:
+
+# Where to install the software. These are the paths OUTSIDE the container:
+SOFTWARE_INSTDIR="/gpfs/easybuild"
+SOFTWARE_HOME="${SOFTWARE_INSTDIR}/${ARCH}"
+# Which container name to be used:
+CONTAINER_DIR="${SOFTWARE_INSTDIR}/containers"
+# In case there are problems with Unsupported encoding ISO-8859-5:
+# use this container version as it is an older build:
+CONTAINER_VERSION="eb-4.7.1-lmod-rocky8.7.sif"
+# CONTAINER_VERSION="eb-4.7.0-lmod-rocky8.5.sif"
+# For testing we are using a different container: 
+CONTAINER_TESTING_VERSION="eb-4.7.0-envmod-alma8.8.sif"
+# We might need to bind an additional external directory into the container:
+BINDDIR="${SOFTWARE_INSTDIR}:/software"
+# We need that so we got the PBS-Pro stuff inside the container
+OPTDIR="/opt:/opt"
+# The CUDA-installer wants to write to /var/log, so we do this
+CUDALOGS="${TMPDIR}/cuda-logs"
+
+
+# Variables EasyBuild concerning, i.e. used INSIDE the container:
+# Some variables need to come from PBSpro above!
+EASYBUILD_ACCEPT_EULA_FOR="Intel-oneAPI,NVHPC,NVIDIA-driver"
+EASYBUILD_PREFIX="${SOFTWARE_INSTDIR}/${ARCH}"
+EASYBUILD_SOURCEPATH="/software/sources"
+EASYBUILD_INSTALLPATH="${SOFTWARE_INSTDIR}/${ARCH}"
+EASYBUILD_BUILDPATH="/dev/shm/$USER"
+EASYBUILD_TMPDIR="/dev/shm/$USER"
+EASYBUILD_PARALLEL="$CORES"
+EB_VERSION="4.8.1"
+MODULEPATH="${SOFTWARE_INSTDIR}/${ARCH}/modules/all"
+EB="eb --robot --download-timeout=100 --hooks=/software/hooks/hx1-hooks.py"

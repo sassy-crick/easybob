@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# setting up the environment:
+source /etc/profile.d/modules.sh
+shopt -s expand_aliases
+export EASYBUILD_ACCEPT_EULA_FOR="${EASYBUILD_ACCEPT_EULA_FOR}"
+export EASYBUILD_PREFIX="${EASYBUILD_INSTALLPATH}"
+export EASYBUILD_SOURCEPATH="${EASYBUILD_SOURCEPATH}"
+export EASYBUILD_INSTALLPATH="${EASYBUILD_INSTALLPATH}"
+export EASYBUILD_BUILDPATH="${EASYBUILD_BUILDPATH}"
+# export EASYBUILD_TMPDIR="${EASYBUILD_BUILDPATH}"
+export EASYBUILD_TMPDIR="${EASYBUILD_TMPDIR}"
+export EASYBUILD_PARALLEL="${CORES}"
+export MODULEPATH="${MODULEPATH}"
+export PYTHONIOENCODING="utf-8"
+export LC_ALL=C.UTF-8
+
+# somehow the cluster's environment modules go through
+# into the container. So we simply source the script again
+module use ${MODULEPATH}
+
+# loading the right EasyBuild module:
+module add EasyBuild/${EB_VERSION}
+
+# check what we got
+eb --version
+
+# check the loaded modules
+module list
+
+# as we remove anything PBS related, we need to make sure the JOBID is somehow kept for later
+export JOBID=${PBS_JOBID}
+export NODEFILE=${PBS_NODEFILE}
+
+# remove anything with PBS-Pro as we don't need it
+for i in $(env | grep PBS | awk -F "=" '{print $1}'); do echo $i; unset $i; done
+

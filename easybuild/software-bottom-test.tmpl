@@ -1,0 +1,23 @@
+# If the tests passed, we are building the tarball and the sha256sum file
+# We currently don't build the tarball
+
+if [ ${test} == "y" ]; then
+#	echo "Building the container with the software which will be placed in the"
+#	echo "${WORKINGDIR}"
+#	echo "directory, together with the checksum file of all files"
+#	# We kick off the checksum first, as that might take a bit longer
+#	coproc checksums (find "${EASYBUILD_INSTALLPATH}" -type f -exec sha256sum {} >> "${WORKINGDIR}/${ARCH}".sha256sum \;)
+#	tar -czPf  "${WORKINGDIR}/${ARCH}".tar.gz "${EASYBUILD_INSTALLPATH}"
+#	# We need to wait for the checksum to be done        
+#	while [[ $(ps -A | grep ${checksums_PID} &> /dev/null) -ne 0 ]] ; do
+#	echo "The checksum is still running."
+#	echo " We need to wait until the process has finished"
+#	sleep 10
+#	done
+    # we need to remove the EASYBUILD_TMPDIR and EASYBUILD_BUILDPATH so they don't mess up other installations
+    echo "Removing build and temp directories ${EASYBUILD_TMPDIR} ${EASYBUILD_BUILDPATH} and /dev/shm/${JOBID}-testing.log ."
+    rm -rf ${EASYBUILD_TMPDIR} 
+    rm -rf ${EASYBUILD_BUILDPATH}
+    rm -f /dev/shm/${JOBID}-testing.log
+fi
+

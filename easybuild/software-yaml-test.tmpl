@@ -1,0 +1,15 @@
+# testing stuff using EasyStack
+test="n"
+
+# We change back to the normal eb modus operandi 
+alias eb="${EB}"
+
+eb --sanity-check-only --experimental --easystack ${SW_YAML} &> /dev/shm/${JOBID}-testing.log 
+if [ $? -gt 0 ]; then
+	echo "FAILURE"
+	cat /dev/shm/${JOBID}-testing.log 
+	cp -f /dev/shm/${JOBID}-testing.log ${WORKINGDIR}/logs
+else
+	test="y"	
+	echo "PASS"
+fi

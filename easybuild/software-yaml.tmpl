@@ -1,0 +1,11 @@
+# We check if we are running on a GPU node or not. If so, we set --cuda-compute-capabilities as defined in site-config
+if [ -z ${CUDA_COMPUTE_CAPABILITIES} ]; then
+alias eb="${EB}"
+else
+alias eb="${EB} --cuda-compute-capabilities=${CUDA_COMPUTE_CAPABILITIES}"
+fi
+
+# building stuff using EasyStack
+eb --fetch --experimental --easystack ${SW_YAML} 
+eb --experimental --easystack ${SW_YAML} 
+

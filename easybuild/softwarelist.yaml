@@ -1,0 +1,5 @@
+software:
+  bzip2:
+    toolchains:
+      SYSTEM:
+        versions: [1.0.6]
