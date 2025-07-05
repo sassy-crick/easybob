@@ -24,10 +24,6 @@
 # 23/06/2023: Script adapted to HX1, which also means some modularity has been added
 #             to run on different clusters
 
-# Where is the script located?
-# BASEDIR=$(dirname "$0")
-# BASEDIR=$PWD/easybuild
-
 # The umask on the nodes is set to 0077 which is causing problems for the software
 # installation, so we need to change that:
 umask 0022
@@ -80,16 +76,6 @@ SW_NAME="${WORKINGDIR}/softwarelist.txt"
 SW_YAML="${WORKINGDIR}/softwarelist.yaml"
 # Right now we don't have access to /tmp, so we are using our ephemeral instead
 EB_TMPDIR="${EPHEMERAL}"
-# We might need to change that. Right now we are having the generic develop build as
-# defined in the site-config file, and the architecture specific builds here.
-# At the next maintanence window, we might want to sort that out better!
-# This has been sorted now, so here we do the production build
-#if [ ${ARCH} != "develop" ]; then
-#	SOFTWARE_INSTDIR="/rds/easybuild"
-#	MODULEPATH="/sw-eb/modules/all"
-#	EASYBUILD_INSTALLPATH="/sw-eb"
-#	SOFTWARE_HOME="${SOFTWARE_INSTDIR}/${ARCH}" # this is for the development software stack
-#fi
 
 # For the Intel compilers, IMPI is expecting a hostfile in  /var/spool/pbs/aux
 # So we need to bind-mount that.
@@ -108,7 +94,7 @@ else
         OVERLAY_MOUNTPOINT="/sw-eb"
 fi
 # Used for EasyBuild
-SOFTWARE_HOME="${SOFTWARE_INSTDIR}/${ARCH}/apps"
+SOFTWARE_HOME="${EASYBUILD_INSTALLPATH}"
 CONTAINER="${CONTAINER_DIR}/${CONTAINER_VERSION}"
 SCRIPTS_DIR="${WORKINGDIR}/${ARCH}/${PBS_JOBID}/scripts"
 SOFTWARE="${SCRIPTS_DIR}/software.sh"
@@ -154,28 +140,52 @@ export CUDA_COMPUTE_CAPABILITIES
 # This is to dynamically set where EasyBuild is writing out the various temporary files. The setting is 
 # done in the site-configuration file. 
 
-if [ ${EASYBUILD_TMPDIR} == "logdir" ]; then
-	export EASYBUILD_TMPDIR="${LOG_DIR}"
+if [ "${SHORTLOGDIR}" == "ON" ]; then
+        export EASYBUILD_TMPDIR="/dev/shm/$USER"
 else
-	export EASYBUILD_TMPDIR="/dev/shm/$USER"
+        export EASYBUILD_TMPDIR="${LOG_DIR}"
 fi
+
+echo "The log-dir is set now to:" ${EASYBUILD_TMPDIR}
 
 # We make a scripts and log directory in the working-directory, as that one is unique to all builds.
 mkdir -p ${SCRIPTS_DIR} ${LOG_DIR}
 
 # We create the software.sh file on the fly in the right place. Any previous version will be removed.
-envsubst '${EASYBUILD_ACCEPT_EULA_FOR},${EASYBUILD_SOURCEPATH},${EASYBUILD_INSTALLPATH},${CORES},${EASYBUILD_BUILDPATH},${EASYBUILD_TMPDIR},${MODULEPATH},${EB_VERSION}}' < ${BASEDIR}/easybuild/software-head.tmpl > ${SOFTWARE} 
-if [ -n "${OPTARCH}" ]; then
-	echo "# We are setting OPTARCH here" >> ${SOFTWARE}
-	echo "export EASYBUILD_OPTARCH='${OPTARCH}'" >> ${SOFTWARE}
+envsubst '${EASYBUILD_ACCEPT_EULA_FOR},${EASYBUILD_SOURCEPATH},${EASYBUILD_INSTALLPATH},${CORES},${EASYBUILD_BUILDPATH},${EASYBUILD_TMPDIR},${MODULEPATH},${EB_VERSION}}' < ${BASEDIR}/easybuild/software-head.tmpl > ${SOFTWARE}
+#if [ -n "${OPTARCH}" ]; then
+#       echo "# We are setting OPTARCH here" >> ${SOFTWARE}
+#       echo "export EASYBUILD_OPTARCH='${OPTARCH}'" >> ${SOFTWARE}
+#fi
+# echo some environment variables, so set
+
+if [ -n "${EASYBUILD_OPTARCH}" ]; then
+        echo "We are using these OPTARCH settings: ${EASYBUILD_OPTARCH}"
+        sed -i '/^# Additional*/a export EASYBUILD_OPTARCH='\""${EASYBUILD_OPTARCH}"\" ${SOFTWARE}
 fi
+
+if [ "${EASYBUILD_SKIP_TEST_STEP}" == "True" ]; then
+        echo "####################################################################'"
+        echo "WARNING! NO TESTS WILL BE PERFORMED! MAKE SURE YOU KNOW WHAT YOU DO!!"
+        echo "####################################################################'"
+        sed -i '/^# Additional*/a export EASYBUILD_SKIP_TEST_STEP="True"' ${SOFTWARE}
+fi
+
+if [ -n "${CUDA_COMPUTE_CAPABILITIES}" ]; then
+        echo "We are using these CUDA compatibility settings:" ${CUDA_COMPUTE_CAPABILITIES}
+        sed -i '/^# Additional*/a echo "The CUDA compute capabilties is set to" '"${CUDA_COMPUTE_CAPABILITIES}" ${SOFTWARE}
+        sed -i '/^# Additional*/a echo "We got access to" $CUDA_VISIBLE_DEVICES "GPUs"' ${SOFTWARE}
+        sed -i '/^# Additional*/a export EASYBUILD_CUDA_COMPUTE_CAPABILITIES='\""${CUDA_COMPUTE_CAPABILITIES}"\" ${SOFTWARE}
+fi
+
+# Software related bits
 if [ -s ${SW_NAME} ]; then
         SW_LIST=$(cat ${SW_NAME})
         export SW_LIST
-        envsubst '${EB},${SW_LIST},${CUDA_COMPUTE_CAPABILITIES}' < ${BASEDIR}/easybuild/software-list.tmpl >> ${SOFTWARE} 
+        envsubst '${EB},${SW_LIST}' < ${BASEDIR}/easybuild/software-list.tmpl >> ${SOFTWARE}
 fi
 if [ -s ${SW_YAML} ]; then
-        envsubst '${EB},${SW_YAML},${CUDA_COMPUTE_CAPABILITIES}' < ${BASEDIR}/easybuild/software-yaml.tmpl >> ${SOFTWARE} 
+        envsubst '${EB},${SW_YAML},${CUDA_COMPUTE_CAPABILITIES}' < ${BASEDIR}/easybuild/software-yaml.tmpl >> ${SOFTWARE}
         cp -f ${SW_YAML} ${SCRIPTS_DIR}
 fi
 cat ${BASEDIR}/easybuild/software-bottom.tmpl >> ${SOFTWARE}
@@ -194,24 +204,20 @@ else
         NV_FLAG=""
 fi
 
-# We check if we got the fuse-overly installed and if not, install it
-# Right now, we don't need that any more but we leave it for reference purposes
-# if [ ! -f ${OVERLAY_BASEDIR}/fuse-overlayfs ]; then
-#	 curl -o ${OVERLAY_BASEDIR}/fuse-overlayfs -L https://github.com/containers/fuse-overlayfs/releases/download/v1.8.2/fuse-overlayfs-x86_64 
-#	 chmod a+x ${OVERLAY_BASEDIR}/fuse-overlayfs  
-# fi
-
-# We check if we already have an EasyBuild module file.
+# We check if we already have an EasyBuild module file outside the container.
 # If there is none, we assume it is a fresh installation and so we need
 # to upgrade EasyBuild to the latest version first before we can continue
 if [ ! -d ${SOFTWARE_HOME}/modules/all/EasyBuild ]; then
-		singularity exec --bind ${BINDDIR} --bind ${SOFTWARE_HOME}:${EASYBUILD_INSTALLPATH} \
-		${CONTAINER} ${EB} --prefix=${SOFTWARE_HOME} --installpath=${EASYBUILD_INSTALLPATH} --install-latest-eb-release
-	elif [ ! -e ${SOFTWARE_HOME}/modules/all/EasyBuild/${EB_VERSION}* ]; then
-	       	echo "We are upgrading EasyBuild to the latest version."
-		# We can execute the container and tell it what to do:
-		singularity exec --bind ${BINDDIR} --bind ${SOFTWARE_HOME}:${EASYBUILD_INSTALLPATH} \
-		${CONTAINER} ${EB} --prefix=${SOFTWARE_HOME} --installpath=${EASYBUILD_INSTALLPATH} --install-latest-eb-release
+                echo "We are installing the latest version of EasyBuild on the host OS, using the one which is inside the container"
+                EBLATEST="eb"
+                singularity exec --bind ${BINDDIR} --bind ${SOFTWARE_HOME}:${EASYBUILD_INSTALLPATH} \
+                ${CONTAINER} ${EBLATEST} --prefix=${SOFTWARE_HOME} --installpath=${EASYBUILD_INSTALLPATH} --install-latest-eb-release
+        elif [ ! -e ${SOFTWARE_HOME}/modules/all/EasyBuild/${EB_VERSION}* ]; then
+                echo "We are upgrading EasyBuild to the latest version using the installed version inside the container for this."
+                EBLATEST="eb"
+                # We can execute the container and tell it what to do:
+                singularity exec --bind ${BINDDIR} --bind ${SOFTWARE_HOME}:${EASYBUILD_INSTALLPATH} \
+                ${CONTAINER} ${EBLATEST} --prefix=${SOFTWARE_HOME} --installpath=${EASYBUILD_INSTALLPATH} --install-latest-eb-release
 fi
 
 # If the directory exist and the latest EasyBuild module is there, we simply install the
