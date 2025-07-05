@@ -33,12 +33,12 @@ fi
 # This way, it is hopefully a bit easier to read then a convoluted script. 
 case ${cluster} in
         hx1)
-        source ${BASEDIR}/hx1-config
         SITECONFIG=hx1-config
+        source ${BASEDIR}/${SITECONFIG}
         ;;
         CX3-old)
-        source ${BASEDIR}/cx3-config
         SITECONFIG=cx3-config
+        source ${BASEDIR}/${SITECONFIG}
         ;;
         CX3-Phase2)
         SITECONFIG=cx3-phase2-config
