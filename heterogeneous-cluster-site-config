@@ -15,6 +15,27 @@ GPUPLATFORMS="icelake-gpu"
 # We need to specify the queue:
 QUEUE="cx"
 
+# We are installing software as soon as they are merged, not only when a new release is out
+# Thus, we need to pull the latest releases from GitHub. The problem here is if there are also 
+# EasyBlocks which were changed. 
+# We simply define the full path for the GitHub folder, containing the EasyConfig files. 
+# This is of course site-specific and the full path is required:
+GITHUBEC="/PATH/TO/git/easybuild-easyconfigs/"
+
+# For a binary installation, like MATLAB etc, we are using the noarch folder
+# To make that work, we are just having a list here of possible candidates
+# This needs to be a list, as we later look over it and also check if that variable
+# is set at all
+NOARCH="MATLAB ANSYS STAR-CCM+ ABAQUS COMSOL Fiji Gaussian FreeSurfer VTune CellRanger Mathematica FSL"
+
+# Some software, like pybind11, does not like long paths, so here we list them
+# to make sure only the much shorter /dev/shm/$USER path is being used
+SHORTLOG="pybind11"
+
+# For ORCA, the test jobs are not working well within the container, so we simply
+# disable them. Other software might be added here too
+NOTESTS="ORCA"
+
 # We define which softwarestack we are building. The default for prod is using
 # the EasyBuild supplied flags. We can overwrite that for specific partitions of
 # PBS further below using that syntax.
@@ -23,25 +44,41 @@ QUEUE="cx"
 
 function icelake {
 PARTITION=":cpu_type=icelake"
-CORES="24"
+CORES="16"
 ARCH="icelake"
+WALLTIME="72:00:0"
 }
 
 function rome {
 PARTITION=":cpu_type=rome"
-CORES="24"
-ARCH="zen2"
+CORES="16"
+ARCH="rome"
+EASYBUILD_OPTARCH="Intel:-axAVX2 -mavx2"
+WALLTIME="72:00:0"
+}
+
+function noarch {
+PARTITION=""
+CORES="4"
+ARCH="noarch"
+WALLTIME="4:00:0"
+SOFTWARE_HOME="/rds/easybuild/noarch/apps/"
+EASYBUILD_PREFIX="/rds/easybuild/noarch/apps/"
+EASYBUILD_INSTALLPATH="/rds/easybuild/noarch/apps/"
+EASYBUILD_TMPDIR="/dev/shm/$USER"
+MODULEPATH="/rds/easybuild/noarch/apps/modules/all"
 }
 
 function dev {
 PARTITION=""
-CORES="24"
+CORES="16"
 ARCH="icelake"
-EASYBUILD_OPTARCH="Intel:xAVX;GCC:march=nocona -mtune=generic"
+EASYBUILD_OPTARCH="Intel:-axAVX2 -mavx2;GCC:-march=haswell -mtune=generic"
 SOFTWARE_HOME="/rds/easybuild/dev/apps/"
 EASYBUILD_PREFIX="/rds/easybuild/dev/apps/"
 EASYBUILD_INSTALLPATH="/rds/easybuild/dev/apps/"
 MODULEPATH="/rds/easybuild/dev/apps/modules/all"
+EB="eb --trace --robot --robot-paths=/PATH/TO/git/easybuild-easyconfigs/easybuild/easyconfigs/ --download-timeout=100 --hooks=/software/hooks/hooks-dev.py"
 }
 
 #### GPU SECTION ###
@@ -56,6 +93,7 @@ PARTITION=":cpu_type=icelake:ngpus=2:gpu_type=A100"
 CORES="12"
 ARCH="icelake"
 CUDA_COMPUTE_CAPABILITIES="8.0"
+WALLTIME="72:00:0"
 }
 
 function rome-gpu {
@@ -63,6 +101,7 @@ PARTITION=":cpu_type=rome:ngpus=4:gpu_type=RTX6000"
 CORES="24"
 ARCH="zen2"
 CUDA_COMPUTE_CAPABILITIES="7.5"
+WALLTIME="72:00:0"
 }
 
 ###
@@ -80,9 +119,9 @@ SOFTWARE_INSTDIR="/rds/easybuild"
 SOFTWARE_HOME="${SOFTWARE_INSTDIR}/${ARCH}/apps"
 # Which container name to be used:
 CONTAINER_DIR="${SOFTWARE_INSTDIR}/containers"
-CONTAINER_VERSION="eb-4.8.0-lmod-rocky8.7-cx.sif"
+CONTAINER_VERSION="eb-4.9.4-lmod-rocky8.9-cx.sif"
 # For testing we are using a different container: 
-CONTAINER_TESTING_VERSION="eb-4.7.0-lmod-alma8.8.sif"
+CONTAINER_TESTING_VERSION="eb-4.9.4-lmod-alma8.9.sif"
 # We might need to bind an additional external directory into the container:
 BINDDIR="${SOFTWARE_INSTDIR}:/software"
 # We need that so we got the PBS-Pro stuff inside the container
@@ -90,18 +129,28 @@ OPTDIR="/opt:/opt"
 # The CUDA-installer wants to write to /var/log, so we do this
 CUDALOGS="${TMPDIR}/cuda-logs"
 
-
 # Variables EasyBuild concerning, i.e. used INSIDE the container:
 # Some variables need to come from PBSpro above!
-EASYBUILD_ACCEPT_EULA_FOR="Intel-oneAPI,NVHPC,NVIDIA-driver"
+EASYBUILD_ACCEPT_EULA_FOR="Intel-oneAPI,NVHPC,NVIDIA-driver,CUDA,AOCC,cuDNN"
 EASYBUILD_PREFIX="/sw-eb"
 EASYBUILD_SOURCEPATH="/software/sources"
 EASYBUILD_INSTALLPATH="/sw-eb"
 EASYBUILD_BUILDPATH="/dev/shm/$USER"
-EASYBUILD_TMPDIR="/dev/shm/$USER"
+# Choose between the logs being in /dev/shm or a log-path next to the directory for the EB script.
+# The LOG_DIR will be defined in the install.sh script as we need the CPU architecture and the Job-ID for that
+# We only need that for software in the SHORTLOG list. If the software is not in there, the LOG_DIR as defined 
+# in the install.sh will be used.  
+# EASYBUILD_TMPDIR="/dev/shm/$USER"
+# EASYBUILD_TMPDIR="${LOG_DIR}"
+# Where do we want to have the log-files? Default will be set here:
+# LOG_DIR="\${WORKINGDIR}/\${ARCH}/\${PBS_JOBID}/logs"
 EASYBUILD_PARALLEL="$CORES"
-EB_VERSION="4.9.1"
+EB_VERSION="5.1.0"
 MODULEPATH="/sw-eb/modules/all"
-EB="eb --trace --robot --download-timeout=100 --hooks=/software/hooks/site-hooks.py"
+# Switch between using the GitHub repository, or the one from Easybuild. 
+# This if for the default EasyConfig repository:
+EB="eb --robot --download-timeout=100 --hooks=/software/hooks/site-hooks.py"
+# This is if you want to use the GitHub one, which contains the merged EasyConfig files:
+# EB="eb --robot --robot-paths=${GITHUBEC}/easybuild/easyconfigs --download-timeout=100 --hooks=/software/hooks/site-hooks.py"
 # No nooks if we are testing!
-# EB="eb --trace --robot --download-timeout=100"
+# EB="eb --robot --download-timeout=100"
