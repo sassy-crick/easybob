@@ -68,7 +68,7 @@ The `software.sh` will be created on the fly in the right directory, using the v
 If you need to change any of the paths where the software will be installed, you will need to look into `software.tmpl`, the Singularity Definition file `Singularity.eb-4.9.4-envmod-rocky8.9` and both the `install.sh` and `interactive-install.sh` files. That said, in theory everything should be configured already in the `site-config` file.
 Note: You can mount any folder outside the container but you will need to make sure that the `MODULEPATH` variable are identical inside and outside the container. Thus, if you are using like in our example `/sw-eb` as the root install directory, the `MODULEPATH` then needs to be set to for example `/sw-eb/modules/all` inside and outside the container!
 
-The first time the script runs, it will create the directory structure but then stops as the Singularity container is not in place.
+The first time the script runs, it will create the directory structure but then stops as the Apptainer container is not in place.
 
 Once the container in the right folder we are upgrading EasyBuild to the latest version. This way, a module file is created automatically. Once that is done, the software will be installed if required.  
 
