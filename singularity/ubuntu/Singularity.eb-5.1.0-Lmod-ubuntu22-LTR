@@ -1,5 +1,5 @@
 Bootstrap: debootstrap
-OSVersion: focal
+OSVersion: jammy 
 MirrorURL: http://archive.ubuntu.com/ubuntu/
 
 %post
@@ -25,7 +25,7 @@ apt clean
 pip3 install -U pip
 pip3 install wheel
 pip3 install -U setuptools==58.5.3
-pip3 install easybuild==4.4.2
+pip3 install easybuild==5.1.0
 pip3 install rich
 pip3 install PyYAML
 
@@ -118,6 +118,6 @@ alias eb="eb --robot --download-timeout=1000"
  
 %labels
 Author J. Sassmannshausen <jorg.sassmannshausen@kcl.ac.uk>
-EasyBuild version 4.4.2
+EasyBuild version 5.1.0 
 Software build container
 
