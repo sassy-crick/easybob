@@ -1,37 +1,36 @@
-Bootstrap: yum
-OSVersion: 8.4
-MirrorURL: https://dl.rockylinux.org/pub/rocky/%{OSVERSION}/BaseOS/x86_64/os/
-Include: yum
+Bootstrap: debootstrap
+OSVersion: focal
+MirrorURL: http://archive.ubuntu.com/ubuntu/
 
 %post
-yum --assumeyes update
-yum install --quiet --assumeyes epel-release
-# This is needed for the change to CentOS8 which we need in Rocky8 too
-yum install --quiet --assumeyes dnf-plugins-core 
-dnf config-manager --set-enabled powertools 
-yum install --quiet --assumeyes python3 Lmod
-yum install --quiet --assumeyes python3-pip
-yum install --quiet --assumeyes bzip2 gzip tar zip unzip xz
-yum install --quiet --assumeyes curl wget rsync cpio 
-yum install --quiet --assumeyes patch make
-yum install --quiet --assumeyes file git which
-# yum install --quiet --assumeyes gcc-c++
-yum install --quiet --assumeyes perl-Data-Dumper
-yum install --quiet --assumeyes perl-Thread-Queue
-yum install --quiet --assumeyes libibverbs-devel rdma-core-devel
-# yum install --quiet --assumeyes openssl-devel openssl
-yum clean all
+# For Ubuntu, we need to add other repositories as well:
+sed -i 's/main/main universe/' /etc/apt/sources.list
+apt update 
+apt dist-upgrade -y 
+apt install -y python3 python3-setuptools lmod
+apt install -y python3-pip
+apt install -y bzip2 gzip tar zip unzip xz-utils 
+apt install -y curl wget rsync cpio locales
+apt install -y patch make
+apt install -y file git debianutils
+apt install -y gcc libxml2-dev 
+apt install -y libibverbs-dev 
+apt install -y libssl-dev
+apt install -y binutils libthread-queue-any-perl
+apt install -y procps
+apt install -y man libdb-dev
+apt clean
 
 # install EasyBuild using pip3
-python3 -m pip install -U pip
-python3 -m pip install wheel
-python3 -m pip install -U setuptools==58.5.3
-python3 -m pip install easybuild==4.5.0
-python3 -m pip install rich
-python3 -m pip install PyYAML
+pip3 install -U pip
+pip3 install wheel
+pip3 install -U setuptools==58.5.3
+pip3 install easybuild==4.9.4
+pip3 install rich
+pip3 install PyYAML
 
 # create 'easybuild' user (if missing)
-id easybuild || useradd easybuild
+id easybuild || useradd -s /bin/bash -m easybuild
 
 # create /app software installation prefix + /scratch sandbox directory
 if [ ! -d /apps/easybuild ]; then mkdir -p /apps/easybuild; chown easybuild:easybuild -R /apps/easybuild; fi
@@ -42,15 +41,15 @@ if [ ! -d /home/easybuild ]; then mkdir -p /home/easybuild; chown easybuild:easy
 cat > /etc/lmodrc.lua << EOD
 scDescriptT = {
   {
-    ["dir"]       = "/app/lmodcache",
-    ["timestamp"] = "/app/lmodcache/timestamp",
+    ["dir"]       = "/apps/easybuild/lmodcache",
+    ["timestamp"] = "/apps/easybuild/lmodcache/timestamp",
   },
 }
 EOD
+
 # verbose commands, exit on first error
 set -ve
 set -o noclobber
-
 # We set this so if we need to open the container again, we got the environment set up correctly
 cat >> /home/easybuild/.bashrc << 'EOG'
 export EASYBUILD_SOURCEPATH=/software/easybuild/sources
@@ -62,13 +61,13 @@ export EASYBUILD_ACCEPT_EULA_FOR=Intel-oneAPI,NVHPC
 export MODULEPATH=/apps/easybuild/modules/all
 alias eb="eb --robot --download-timeout=1000"
 export PYTHONIOENCODING='utf-8'
+ulimit -l unlimited
 EOG
 
 # configure EasyBuild
-cat > /home/easybuild/eb-install.sh << 'EOD'
+cat > /home/easybuild/eb-environment.sh << 'EOD'
 #!/usr/bin/env bash
 echo  "Setting up environment for interactive use"
-. /usr/share/lmod/lmod/init/profile
 shopt -s expand_aliases
 export EASYBUILD_SOURCEPATH=/software/easybuild/sources
 export EASYBUILD_INSTALLPATH=/apps/easybuild
@@ -86,8 +85,7 @@ echo "# for i in \$(export | grep SLURM); do unset \$( echo \$i | grep SLURM | a
 echo "# for i in \$(export | grep SLURM); do echo \$i; done"
 EOD
 
-chown easybuild:easybuild /home/easybuild/eb-install.sh
-chmod a+x /home/easybuild/eb-install.sh
+chmod a+x /home/easybuild/eb-environment.sh
 
 %runscript
 eval "$@"
@@ -96,7 +94,7 @@ eval "$@"
 # this seems to be needed to make sure the terminal is working:
 export TERM=xterm-256color
 # make sure that 'module' and 'ml' commands are defined
-source /usr/share/lmod/lmod/init/profile 
+source /etc/profile
 # increase threshold time for Lmod to write cache in $HOME (which we don't want to do)
 export LMOD_SHORT_TIME=86400
 # purge any modules that may be loaded outside container
@@ -120,6 +118,6 @@ alias eb="eb --robot --download-timeout=1000"
  
 %labels
 Author J. Sassmannshausen <jorg.sassmannshausen@kcl.ac.uk>
-EasyBuild version 4.5.0
+EasyBuild version 4.9.4
 Software build container
 

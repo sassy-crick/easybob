@@ -14,9 +14,38 @@
 # PLATFORMS="prod dev"
 PLATFORMS="prod"
 # PLATFORMS="dev"
+GPUPLATFORMS="hx1-gpu"
 
 # We need to specify the queue for the cluster:
 QUEUE="hx"
+
+# We are installing software as soon as they are merged, not only when a new release is out
+# Thus, we need to pull the latest releases from GitHub. The problem here is if there are also 
+# EasyBlocks which were changed. 
+# We simply define the full path for the GitHub folder, containing the EasyConfig files:
+GITHUBEC="/PATH/to/git/easybuild-easyconfigs"
+
+# For a binary installation, like MATLAB etc, we are using the noarch folder
+# To make that work, we are just having a list here of possible candidates
+# This needs to be a list, as we later look over it and also check if that variable
+# is set at all
+NOARCH="MATLAB ANSYS STAR-CCM+ ABAQUS COMSOL Fiji Gaussian FreeSurfer VTune CellRanger Mathematica FSL"
+
+# Some software, like pybind11, does not like long paths, so here we list them
+# to make sure only the much shorter /dev/shm/$USER path is being used
+SHORTLOG="pybind11"
+
+# For ORCA, the test jobs are not working well within the container, so we simply
+# disable them. Other software might be added here too
+NOTESTS="ORCA"
+
+# We define which softwarestack we are building. The default for prod is using
+# the EasyBuild supplied flags. We can overwrite that for specific partitions of
+# PBS further below using that syntax.
+# On HX1, we are only having one architecture so strictly speaking we don't need that.
+# However, we keep it to make the scripts more compatible
+EASYBUILD_OPTARCH=""
+# We do NOT define a default!
 
 # We currently have only one CPU arch, so we don't really need this right now.
 # However, we leave that for references:
@@ -28,14 +57,16 @@ QUEUE="hx"
 
 function prod {
 PARTITION=""
-CORES="24"
+CORES="16"
 ARCH="prod"
+WALLTIME="72:00:0"
 }
 
 function dev {
 PARTITION=""
-CORES="24"
+CORES="16"
 ARCH="dev"
+WALLTIME="72:00:0"
 }
 
 #### GPU SECTION ###
@@ -50,6 +81,7 @@ PARTITION=":ngpus=4:gpu_type=A100"
 CORES="12"
 ARCH="prod"
 CUDA_COMPUTE_CAPABILITIES="8.0"
+WALLTIME="72:00:0"
 }
 
 ####
@@ -67,10 +99,10 @@ SOFTWARE_HOME="${SOFTWARE_INSTDIR}/${ARCH}"
 CONTAINER_DIR="${SOFTWARE_INSTDIR}/containers"
 # In case there are problems with Unsupported encoding ISO-8859-5:
 # use this container version as it is an older build:
-CONTAINER_VERSION="eb-4.7.1-lmod-rocky8.7.sif"
-# CONTAINER_VERSION="eb-4.7.0-lmod-rocky8.5.sif"
+CONTAINER_VERSION="eb-5.0.0-lmod-rocky8.9.sif"
+# CONTAINER_VERSION="eb-4.9.4-lmod-rocky8.9.sif"
 # For testing we are using a different container: 
-CONTAINER_TESTING_VERSION="eb-4.7.0-envmod-alma8.8.sif"
+CONTAINER_TESTING_VERSION="eb-5.0.0-envmod-alma8.9.sif"
 # We might need to bind an additional external directory into the container:
 BINDDIR="${SOFTWARE_INSTDIR}:/software"
 # We need that so we got the PBS-Pro stuff inside the container
@@ -81,13 +113,19 @@ CUDALOGS="${TMPDIR}/cuda-logs"
 
 # Variables EasyBuild concerning, i.e. used INSIDE the container:
 # Some variables need to come from PBSpro above!
-EASYBUILD_ACCEPT_EULA_FOR="Intel-oneAPI,NVHPC,NVIDIA-driver"
+EASYBUILD_ACCEPT_EULA_FOR="Intel-oneAPI,NVHPC,NVIDIA-driver,CUDA,AOCC"
 EASYBUILD_PREFIX="${SOFTWARE_INSTDIR}/${ARCH}"
 EASYBUILD_SOURCEPATH="/software/sources"
 EASYBUILD_INSTALLPATH="${SOFTWARE_INSTDIR}/${ARCH}"
 EASYBUILD_BUILDPATH="/dev/shm/$USER"
+# Choose between the logs being in /dev/shm or a log-path next to the directory for the EB script.
+# The LOG_DIR will be defined in the install.sh script as we need the CPU architecture and the Job-ID for that
+# Default is /dev/shm
 EASYBUILD_TMPDIR="/dev/shm/$USER"
+# EASYBUILD_TMPDIR="${LOG_DIR}"
 EASYBUILD_PARALLEL="$CORES"
-EB_VERSION="4.8.1"
+EB_VERSION="5.1.0"
 MODULEPATH="${SOFTWARE_INSTDIR}/${ARCH}/modules/all"
-EB="eb --robot --download-timeout=100 --hooks=/software/hooks/hx1-hooks.py"
+EB="eb --robot --download-timeout=100 --robot-paths=${GITHUBEC}/easybuild/easyconfigs/ --hooks=/software/hooks/site-hooks.py"
+# No nooks if we are testing!
+# EB="eb --robot --download-timeout=100"

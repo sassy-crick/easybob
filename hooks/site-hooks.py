@@ -16,7 +16,7 @@ from easybuild.tools.run import check_async_cmd, run_cmd
 
 # Section for specific software configuration requirements (post_source_hooks)
 
-def post_source_hook(self, *args,**kwargs):
+def post_extract_hook(self, *args,**kwargs):
 
 def parse_hook(ec, *args, **kwargs):
 

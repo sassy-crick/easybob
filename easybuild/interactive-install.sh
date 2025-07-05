@@ -20,12 +20,8 @@
 # 23/06/2023: Script adapted to HX1, which also means some modularity has been added
 #             to run on different clusters
 
-# Modules are not working right now:
-# export PATH=/apps/apptainer/1.0.1/bin:$PATH
-
 # Where is the script located?
 BASEDIR=$(dirname "$0")
-# BASEDIR=$PWD
 
 # The umask on the nodes is set to 0077 which is causing problems for the software 
 # installation, so we need to change that:
@@ -41,61 +37,44 @@ cluster=$(hostname  | cut -d "-" -f 1)
 if [ ${cluster} != "hx1" ]; then
         clustercx=$(hostname -f | cut -d "." -f 1)
         case ${clustercx} in
-                login-a|login-b|login-c|login-dev)
-                source ${BASEDIR}/../site-config
-                SITECONFIG=site-config
+                login-a|login-c)
                 cluster=CX3-old
                 ;;
-                login-ai|login-bi)
-                source ${BASEDIR}/../cx3-intel-config
-                SITECONFIG=cx3-intel-config
-                cluster=CX3-new
+                login-ai|login-bi|login-b|login-dev)
+                cluster=CX3-Phase2
         esac
 fi
 
-# This is how it eventually should look like:
-
-cluster=$(hostname  | cut -d "." -f 2)
+# Now we know which cluster we are on, so we are sourcing the relevant file.
+# This way, it is hopefully a bit easier to read then a convoluted script.
 case ${cluster} in
         hx1)
-        source ${BASEDIR}/../hx1-config
+        source ${BASEDIR}/hx1-config
         SITECONFIG=hx1-config
         ;;
-        cx3)
-        source ${BASEDIR}/../cx3-intel-config
+        CX3-old)
+        source ${BASEDIR}/cx3-config
         SITECONFIG=cx3-config
-	cluster=cx3-new
+        ;;
+        CX3-Phase2)
+        SITECONFIG=cx3-phase2-config
         ;;
         *)
-        source ${BASEDIR}/../site-config
-        SITECONFIG=site-config
-	cluster=cx3-old
+        echo -e "\e[1;31mNo site-config file was found. Stopping here\e[0m"
+        exit 2
 esac
-
 
 echo 'Installing software on Cluster' ${cluster}
 
-# Current working example from HX1
-#cluster=$(hostname  | cut -d "-" -f 1)
-#echo 'Installing software on Cluster' ${cluster}
-
-#case ${cluster} in
-#       hx1)
-#       source ${BASEDIR}/hx1-config
-#       SITECONFIG=hx1-config
-#       ;;
-#       *)
-#       source ${BASEDIR}/site-config
-#       SITECONFIG=site-config
-#esac
-
+source ${BASEDIR}/../${SITECONFIG}
 
 # We need to know which architecture we are running on.
 # Right now, that happens at submission time
 
 if [ -n "$1" ]; then 
         ARCH="$1"
-	export ARCH=${ARCH}
+        export ARCH=${ARCH}
+        export APPTAINERENV_PS1="${ARCH} on [\u@\h \W]\$ "
 else
         echo "No architecture was defined, so we are stopping here!"
         exit 2
@@ -109,16 +88,45 @@ if [[ ${ARCH} == "dev" ]] || [[ ${ARCH} == "develop" ]]; then
 	dev
 	export ARCH="dev"
 	echo "We are using ${EASYBUILD_TMPDIR} as tempdir for EasyBuild"
- #       export EASYBUILD_TMPDIR="/dev/shm/$USER"
+        export APPTAINERENV_PS1="${ARCH} on [\u@\h \W]\$ "
 fi
 
 # In case we are doing a noarch installation, we need to override the PREFIX, EASYBUILD_OPTARCH and 
 # INSTALLPATH for EasyBuild
 
 if [[ ${ARCH} == "noarch" ]]; then
-	echo "We are installing the software in the noarch software stack"
-	noarch	
-	export ARCH="noarch"
+        echo "We are installing the software in the noarch software stack"
+        noarch
+        export ARCH="noarch"
+        EASYBUILD_TMPDIR="/dev/shm/$USER"
+        echo "We are using ${EASYBUILD_TMPDIR} as tempdir for EasyBuild"
+        export APPTAINERENV_PS1="${ARCH} on [\u@\h \W]\$ "
+fi
+
+# In case we are doing a CPU installation manually, we need to override the PREFIX, and 
+# INSTALLPATH for EasyBuild
+
+if [[ ${ARCH} == "icelake" ]]; then
+        echo "We are installing the software in the icelake software stack"
+        icelake 
+        export ARCH="icelake"
+        EASYBUILD_TMPDIR="/dev/shm/$USER"
+        echo "We are using ${EASYBUILD_TMPDIR} as tempdir for EasyBuild"
+        export APPTAINERENV_PS1="${ARCH} on [\u@\h \W]\$ "
+fi
+# Some software requires a specific software-group. We simply use the 'newgrp' command for that
+# https://wiki.ubuntuusers.de/newgrp/
+# This must be set *before* the container is starting. 
+# We simply check if NEWGROUP is defined as the second variable. If that is not used, we don't do 
+# anything
+
+if [ -n "$2" ]; then
+        newgroup="$2"
+        echo "Please run the following command first:"
+        echo 'newgrp' "$newgroup"
+        echo 'And then run the "./interactive-install.sh' "$1"'" command again as printed'
+        echo 'Exiting now'
+        exit 4
 fi
 
 # Setting the environment for EasyBuild inside the container
@@ -130,6 +138,7 @@ export APPTAINERENV_EASYBUILD_SOURCEPATH=${EASYBUILD_SOURCEPATH}
 export APPTAINERENV_EASYBUILD_INSTALLPATH=${EASYBUILD_INSTALLPATH}
 export APPTAINERENV_EASYBUILD_BUILDPATH=${EASYBUILD_BUILDPATH}
 export APPTAINERENV_EASYBUILD_TMPDIR=${EASYBUILD_TMPDIR}
+export APPTAINERENV_EASYBUILD_PARALLEL=${CORES}
 export APPTAINERENV_EB=${EB}
 export APPTAINERENV_MODULEPATH=${MODULEPATH}
 export APPTAINERENV_LC_ALL="C.UTF-8"
@@ -149,7 +158,7 @@ OVERLAY_LOWERDIR="${OVERLAY_BASEDIR}/apps"
 OVERLAY_UPPERDIR="/dev/shm/${USER}/upper"
 OVERLAY_WORKDIR="/dev/shm/${USER}/work"
 # Used for EasyBuild
-SOFTWARE_HOME="${SOFTWARE_INSTDIR}/${ARCH}/apps"
+SOFTWARE_HOME="${EASYBUILD_INSTALLPATH}"
 CONTAINER="${CONTAINER_DIR}/${CONTAINER_VERSION}"
 SCRIPTS_DIR="${WORKINGDIR}/${ARCH}/${PBS_JOBID}/scripts"
 SOFTWARE="${SCRIPTS_DIR}/software.sh"
@@ -202,19 +211,21 @@ PBSHOSTFILE="/var/spool/pbs/aux"
 # If there is none, we assume it is a fresh installation and so we need
 # to upgrade EasyBuild to the latest version first before we can continue
 if [ ! -d ${SOFTWARE_HOME}/modules/all/EasyBuild ]; then
+	        EBLATEST="eb"
                 singularity exec --bind ${BINDDIR} --bind ${SOFTWARE_HOME}:${EASYBUILD_INSTALLPATH} \
-                ${CONTAINER} ${EB} --prefix=${SOFTWARE_HOME} --installpath=${EASYBUILD_INSTALLPATH} --trace --install-latest-eb-release
+                ${CONTAINER} ${EBLATEST} --prefix=${SOFTWARE_HOME} --installpath=${EASYBUILD_INSTALLPATH} --install-latest-eb-release
         elif [ ! -e ${SOFTWARE_HOME}/modules/all/EasyBuild/${EB_VERSION}* ]; then
                 echo "We are upgrading EasyBuild to the latest version."
+		EBLATEST="eb"
                 # We can execute the container and tell it what to do:
                 singularity exec --bind ${BINDDIR} --bind ${SOFTWARE_HOME}:${EASYBUILD_INSTALLPATH} \
-                ${CONTAINER} ${EB} --prefix=${SOFTWARE_HOME} --installpath=${EASYBUILD_INSTALLPATH} --trace --install-latest-eb-release
+                ${CONTAINER} ${EBLATEST} --prefix=${SOFTWARE_HOME} --installpath=${EASYBUILD_INSTALLPATH} --install-latest-eb-release
 fi
 
 # If the directory exist and the latest EasyBuild module is there, we simply install the
 # software stack which we provide. 
 if [ -e  ${SOFTWARE_HOME}/modules/all/EasyBuild/${EB_VERSION}* ]; then
-	echo "This container is running on ${ARCH}"
+	echo "This ${CONTAINER} container is running on ${ARCH}"
 	# We can execute the container and tell it what to do:
 	singularity shell ${NV_FLAG} --bind ${BINDDIR} --bind ${OPTDIR} --bind ${SOFTWARE_HOME}:${EASYBUILD_INSTALLPATH} \
 	--bind ${EB_TMPDIR}:"/tmp" --overlay ${ovl} --bind ${PBSHOSTFILE}:${PBSHOSTFILE} ${CONTAINER} 

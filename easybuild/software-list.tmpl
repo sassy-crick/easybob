@@ -1,15 +1,13 @@
-# We check if we are running on a GPU node or not. If so, we set --cuda-compute-capabilities as defined in site-config
-if [ -z "${CUDA_COMPUTE_CAPABILITIES}" ]; then
 alias eb="${EB}"
-else
-alias eb="${EB} --cuda-compute-capabilities=${CUDA_COMPUTE_CAPABILITIES}"
-echo "The CUDA compute capabilties is set to"  ${CUDA_COMPUTE_CAPABILITIES} 
-echo "We got access to " $CUDA_VISIBLE_DEVICES "GPUs"
-fi
 
+echo "EasyBuild build command is:"
 alias | grep eb
 
-# building stuff
+echo "EasyBuild environment variables are set to:"
+export | grep EASYBUILD
+echo
+
+# building stuff, the '--fetch' can be disabled if required
 eb --fetch ${SW_LIST} 
 eb ${SW_LIST} 
 

@@ -48,28 +48,15 @@ else
         exit 2
 fi
 
-# We might need to change that. Right now we are having the generic develop build as
-# defined in the site-config file, and the architecture specific builds here.
-# At the next maintanence window, we might want to sort that out. 
-#if [ ${ARCH} != "develop" ]; then
-#        SOFTWARE_INSTDIR="/rds/easybuild"
-#        MODULEPATH="/sw-eb/modules/all"
-#        EASYBUILD_INSTALLPATH="/sw-eb"
-#fi
-
 # We need to set the right paths first.
 # We do that via variables up here:
 # These are the only bits which need to be modified:
-# Where to install the software:
-# SOFTWARE_HOME="${SOFTWARE_INSTDIR}/${ARCH}" # this comes fromr the site-config file
 # The first one is for a list of EasyConfig files
 SW_NAME="${WORKINGDIR}/softwarelist.txt"
 # This one is for an EasyStack file in yaml format:
 SW_YAML="${WORKINGDIR}/softwarelist.yaml"
 # Right now we don't have access to /tmp, so we are using our ephemeral instead
 EB_TMPDIR="${EPHEMERAL}"
-# Which container name to be used:
-# CONTAINER_TESTING_VERSION="eb-4.5.2-envmod-rocky8.sif" # this needs to stay here!
 
 # For the Intel compilers, IMPI is expecting a hostfile in  /var/spool/pbs/aux
 # So we need to bind-mount that. 
@@ -123,12 +110,22 @@ export EB
 export SW_YAML
 export WORKINGDIR
 export ARCH
+export EASYBUILD_TMPDIR=${LOG_DIR}
 
 # We make a scripts and log directory in the working-directory, as that one is unique to all builds.
 mkdir -p ${SCRIPTS_DIR} ${LOG_DIR}
 
 # We create the software.sh file on the fly in the right place. Any previous version will be removed.
-envsubst '${EASYBUILD_ACCEPT_EULA_FOR},${EASYBUILD_SOURCEPATH},${EASYBUILD_INSTALLPATH},${CORES},${EASYBUILD_BUILDPATH},${MODULEPATH},${EB_VERSION}' < ${BASEDIR}/easybuild/software-head.tmpl > ${SOFTWARE} 
+envsubst '${EASYBUILD_ACCEPT_EULA_FOR},${EASYBUILD_SOURCEPATH},${EASYBUILD_INSTALLPATH},${CORES},${EASYBUILD_BUILDPATH},${MODULEPATH},${EB_VERSION},${EASYBUILD_TMPDIR}' < ${BASEDIR}/easybuild/software-head.tmpl > ${SOFTWARE}
+
+# echo some environment variables, so set
+if [ "${EASYBUILD_SKIP_TEST_STEP}" == "True" ]; then
+        echo "####################################################################'"
+        echo "WARNING! NO TESTS WILL BE PERFORMED! MAKE SURE YOU KNOW WHAT YOU DO!!"
+        echo "####################################################################'"
+        echo 'export EASYBUILD_SKIP_TEST_STEP == "True"' >> ${SOFTWARE}
+fi
+
 if [ -s ${SW_NAME} ]; then
         SW_LIST=$(cat ${SW_NAME})
         export SW_LIST
@@ -138,9 +135,6 @@ if [ -s ${SW_YAML} ]; then
         envsubst '${EB},${SW_YAML},${WORKINGDIR}' < ${BASEDIR}/easybuild/software-yaml-test.tmpl >> ${SOFTWARE} 
         cp -f ${SW_YAML} ${SCRIPTS_DIR}
 fi
-# IF the above was successfull, we will build the tarball and the sha256sum file 
-# We don't need that right now for the software installation. 
-# envsubst '${ARCH}' < ${BASEDIR}/software-bottom-test.tmpl >> ${SOFTWARE}
 
 chmod a+x ${SOFTWARE}
 
