@@ -7,7 +7,6 @@ export EASYBUILD_PREFIX="${EASYBUILD_INSTALLPATH}"
 export EASYBUILD_SOURCEPATH="${EASYBUILD_SOURCEPATH}"
 export EASYBUILD_INSTALLPATH="${EASYBUILD_INSTALLPATH}"
 export EASYBUILD_BUILDPATH="${EASYBUILD_BUILDPATH}"
-# export EASYBUILD_TMPDIR="${EASYBUILD_BUILDPATH}"
 export EASYBUILD_TMPDIR="${EASYBUILD_TMPDIR}"
 export EASYBUILD_PARALLEL="${CORES}"
 export MODULEPATH="${MODULEPATH}"
@@ -22,6 +21,9 @@ module use ${MODULEPATH}
 module add EasyBuild/${EB_VERSION}
 
 # check what we got
+echo  
+echo "Start of build"
+echo
 eb --version
 
 # check the loaded modules
